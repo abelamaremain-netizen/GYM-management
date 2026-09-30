@@ -30,8 +30,9 @@ async function getEquipment(status, category) {
 }
 
 export default async function EquipmentPage({ searchParams }) {
-  const status = searchParams?.status || 'all';
-  const category = searchParams?.category || '';
+  const params = await searchParams;
+  const status = params?.status || 'all';
+  const category = params?.category || '';
   const { equipment, categories } = await getEquipment(status, category);
 
   const tabs = [

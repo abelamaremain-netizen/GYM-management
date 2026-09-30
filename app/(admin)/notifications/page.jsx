@@ -35,7 +35,8 @@ const TYPE_LABELS = {
 };
 
 export default async function NotificationsPage({ searchParams }) {
-  const filter = searchParams?.filter || 'active';
+  const params = await searchParams;
+  const filter = params?.filter || 'active';
   const notifications = await getNotifications(filter);
 
   const grouped = notifications.reduce((acc, n) => {

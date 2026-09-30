@@ -7,9 +7,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import EmptyState from '../ui/EmptyState';
 import { ShieldCheck } from 'lucide-react';
+import { useToast } from '../ui/Toast';
 
 export default function MembershipsTable({ memberships }) {
   const router = useRouter();
+  const toast = useToast();
 
   if (!memberships.length) {
     return <EmptyState icon={ShieldCheck} title="No memberships found" description="Assign a plan to a member to get started." />;
@@ -48,8 +50,9 @@ export default function MembershipsTable({ memberships }) {
                   className="button button-quiet"
                   style={{ fontSize: 10, padding: '5px 8px' }}
                   onClick={async () => {
-                    await markPaymentAction(m.id, !m.paid, m.users?.id);
-                    router.refresh();
+                    const result = await markPaymentAction(m.id, !m.paid, m.users?.id);
+                    if (result?.error) toast(result.error, 'error');
+                    else { toast(m.paid ? 'Marked as unpaid.' : 'Marked as paid.'); router.refresh(); }
                   }}
                 >
                   {m.paid ? 'Mark unpaid' : 'Mark paid'}

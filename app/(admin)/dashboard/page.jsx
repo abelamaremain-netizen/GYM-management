@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../../lib/supabase';
 import { getSession } from '../../../lib/auth';
 import { generateNotificationsAction } from '../../../lib/actions/notifications';
+import { expireStaleMembers } from '../../../lib/actions/members';
 import { formatCurrency, daysUntil, formatDate } from '../../../lib/utils';
 import {
   Users, ShieldCheck, Wallet, Bell, AlertTriangle,
@@ -12,23 +13,23 @@ import StatusBadge from '../../../components/ui/StatusBadge';
 async function getDashboardData() {
   if (!supabaseAdmin) return null;
 
+  // Task 3: Auto-expire stale members on dashboard load (throttled internally)
+  await expireStaleMembers();
   await generateNotificationsAction();
 
   const today = new Date().toISOString().slice(0, 10);
-  const warningDate = new Date();
 
-  // Get config values
   const { data: configs } = await supabaseAdmin
     .from('configurations')
     .select('key, value')
     .in('key', ['membership_expiry_warning_days', 'payment_due_warning_days']);
   const cfg = Object.fromEntries((configs || []).map((c) => [c.key, parseInt(c.value, 10)]));
-  const expiryWarn = cfg.membership_expiry_warning_days ?? 7;
-  const paymentWarn = cfg.payment_due_warning_days ?? 3;
+  const expiryWarn  = isNaN(cfg.membership_expiry_warning_days) ? 7 : cfg.membership_expiry_warning_days;
+  const paymentWarn = isNaN(cfg.payment_due_warning_days) ? 3 : cfg.payment_due_warning_days;
 
-  warningDate.setDate(warningDate.getDate() + expiryWarn);
-  const expiryWarnDate = warningDate.toISOString().slice(0, 10);
+  const expiryWarnDate  = new Date(Date.now() + expiryWarn  * 86400000).toISOString().slice(0, 10);
   const paymentWarnDate = new Date(Date.now() + paymentWarn * 86400000).toISOString().slice(0, 10);
+  const firstOfMonth    = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 
   const [
     { count: totalMembers },
@@ -36,18 +37,20 @@ async function getDashboardData() {
     { count: frozenMembers },
     { count: expiredMembers },
     { count: activeInstructors },
+    { count: notificationCount },
     { data: expiringMemberships },
     { data: unpaidMemberships },
     { data: equipmentAlerts },
-    { data: activeNotifications },
     { data: recentMembers },
-    { data: revenueData },
+    // Task 11: Use DB-level aggregate for revenue instead of fetching all rows
+    { data: revenueResult },
   ] = await Promise.all([
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'member').neq('status', 'deleted'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'member').eq('status', 'active'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'member').eq('status', 'frozen'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'member').eq('status', 'expired'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'instructor').eq('status', 'active'),
+    supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     supabaseAdmin.from('member_memberships')
       .select('id, member_id, end_date, users!member_id(id, name, status)')
       .gt('end_date', today)
@@ -57,38 +60,34 @@ async function getDashboardData() {
     supabaseAdmin.from('member_memberships')
       .select('id, member_id, final_price, end_date, users!member_id(id, name)')
       .eq('paid', false)
+      .gte('end_date', today)             // only current, not past-expired
       .lte('end_date', paymentWarnDate)
       .order('end_date', { ascending: true })
       .limit(5),
     supabaseAdmin.from('equipment')
       .select('id, name, status, next_service_due')
       .in('status', ['out_of_order', 'needs_service'])
-      .neq('status', 'retired')
       .order('status', { ascending: true })
       .limit(5),
-    supabaseAdmin.from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active'),
     supabaseAdmin.from('users')
       .select('id, name, created_at, member_profiles(joined_at)')
       .eq('role', 'member')
       .neq('status', 'deleted')
       .order('created_at', { ascending: false })
       .limit(5),
-    supabaseAdmin.from('member_memberships')
-      .select('final_price, paid_date')
-      .eq('paid', true)
-      .gte('paid_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)),
+    // Use rpc for sum — falls back to 0 if not available
+    supabaseAdmin.rpc('sum_revenue_this_month', { month_start: firstOfMonth }).maybeSingle(),
   ]);
 
-  const revenueThisMonth = (revenueData || []).reduce((sum, r) => sum + Number(r.final_price), 0);
+  // Revenue: rpc returns a single value; fall back gracefully
+  const revenueThisMonth = revenueResult?.sum ?? 0;
 
   return {
     stats: { totalMembers, activeMembers, frozenMembers, expiredMembers, activeInstructors, revenueThisMonth },
+    notificationCount: notificationCount ?? 0,
     expiringMemberships: expiringMemberships || [],
     unpaidMemberships: unpaidMemberships || [],
     equipmentAlerts: equipmentAlerts || [],
-    notificationCount: activeNotifications || 0,
     recentMembers: recentMembers || [],
   };
 }
@@ -99,9 +98,7 @@ function StatCard({ label, value, sub, icon: Icon, color, href }) {
       <div className={`stat-icon icon-${color}`}><Icon size={19} /></div>
       <div className="stat-content">
         <span className="stat-label">{label}</span>
-        <div className="stat-value-row">
-          <strong>{value ?? '—'}</strong>
-        </div>
+        <div className="stat-value-row"><strong>{value ?? '—'}</strong></div>
         {sub && <small>{sub}</small>}
       </div>
     </article>
@@ -138,24 +135,21 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <section className="stats-grid">
-        <StatCard label="Total Members"      value={data.stats.totalMembers}     sub="All registered members"  icon={Users}      color="green"  href="/members" />
-        <StatCard label="Active Memberships" value={data.stats.activeMembers}    sub="Currently active"        icon={ShieldCheck} color="blue"   href="/members?status=active" />
-        <StatCard label="Revenue This Month" value={formatCurrency(data.stats.revenueThisMonth)} sub="Recorded payments"  icon={Wallet}     color="orange" href="/reports" />
-        <StatCard label="Notifications"      value={data.notificationCount}      sub="Require attention"       icon={Bell}        color="pink"   href="/notifications" />
+        <StatCard label="Total Members"      value={data.stats.totalMembers}     sub="All registered"          icon={Users}         color="green"  href="/members" />
+        <StatCard label="Active Memberships" value={data.stats.activeMembers}    sub="Currently active"        icon={ShieldCheck}   color="blue"   href="/members?status=active" />
+        <StatCard label="Revenue This Month" value={formatCurrency(data.stats.revenueThisMonth)} sub="Recorded payments" icon={Wallet} color="orange" href="/reports" />
+        <StatCard label="Notifications"      value={data.notificationCount}      sub="Require attention"       icon={Bell}          color="pink"   href="/notifications" />
       </section>
 
-      {/* Member status row */}
       <section className="stats-grid" style={{ marginTop: 12 }}>
-        <StatCard label="Frozen Members"     value={data.stats.frozenMembers}    sub="Memberships paused"      icon={Snowflake}  color="blue"   href="/members?status=frozen" />
+        <StatCard label="Frozen Members"     value={data.stats.frozenMembers}    sub="Memberships paused"      icon={Snowflake}     color="blue"   href="/members?status=frozen" />
         <StatCard label="Expired Members"    value={data.stats.expiredMembers}   sub="Need renewal"            icon={AlertTriangle} color="orange" href="/members?status=expired" />
-        <StatCard label="Active Instructors" value={data.stats.activeInstructors} sub="On staff"              icon={TrendingUp} color="green"  href="/instructors" />
-        <StatCard label="Equipment Alerts"   value={data.equipmentAlerts.length} sub="Need attention"          icon={Wrench}     color="pink"   href="/equipment" />
+        <StatCard label="Active Instructors" value={data.stats.activeInstructors} sub="On staff"              icon={TrendingUp}    color="green"  href="/instructors" />
+        <StatCard label="Equipment Alerts"   value={data.equipmentAlerts.length} sub="Need attention"          icon={Wrench}        color="pink"   href="/equipment" />
       </section>
 
       <div className="overview-grid" style={{ marginTop: 16 }}>
-        {/* Expiring memberships */}
         <article className="panel members-panel">
           <div className="panel-heading">
             <div><span className="eyebrow">ACTION REQUIRED</span><h2>Expiring soon</h2></div>
@@ -182,7 +176,6 @@ export default async function DashboardPage() {
           )}
         </article>
 
-        {/* Unpaid memberships */}
         <article className="panel payments-panel">
           <div className="panel-heading">
             <div><span className="eyebrow">PAYMENTS</span><h2>Unpaid</h2></div>
@@ -207,7 +200,6 @@ export default async function DashboardPage() {
         </article>
       </div>
 
-      {/* Equipment alerts */}
       {data.equipmentAlerts.length > 0 && (
         <article className="panel members-panel" style={{ marginTop: 14 }}>
           <div className="panel-heading">
@@ -220,7 +212,7 @@ export default async function DashboardPage() {
               <tbody>
                 {data.equipmentAlerts.map((e) => (
                   <tr key={e.id}>
-                    <td><Link href={`/equipment`} className="table-link">{e.name}</Link></td>
+                    <td><Link href="/equipment" className="table-link">{e.name}</Link></td>
                     <td><StatusBadge status={e.status} /></td>
                     <td className="muted-cell">{formatDate(e.next_service_due)}</td>
                   </tr>
@@ -231,7 +223,6 @@ export default async function DashboardPage() {
         </article>
       )}
 
-      {/* Recent members */}
       <article className="panel members-panel" style={{ marginTop: 14 }}>
         <div className="panel-heading">
           <div><span className="eyebrow">COMMUNITY</span><h2>Recent members</h2></div>

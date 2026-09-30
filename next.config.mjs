@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-	outputFileTracingRoot: new URL('.', import.meta.url).pathname,
+  outputFileTracingRoot: new URL('.', import.meta.url).pathname,
+  serverExternalPackages: ['bcryptjs'],
 };
 
 export default nextConfig;

@@ -17,24 +17,32 @@ async function getPlans() {
   return data || [];
 }
 
-async function getMemberships(filter) {
-  if (!supabaseAdmin) return [];
+async function getMemberships(filter, page = 1) {
+  if (!supabaseAdmin) return { data: [], total: 0 };
+  const PAGE_SIZE = 50;
+  const from = (page - 1) * PAGE_SIZE;
+  const to   = from + PAGE_SIZE - 1;
+
   let query = supabaseAdmin
     .from('member_memberships')
-    .select('*, users!member_id(id, name, status)')
+    .select('*, users!member_id(id, name, status)', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(from, to);
 
   if (filter === 'unpaid') query = query.eq('paid', false);
-  if (filter === 'paid') query = query.eq('paid', true);
+  if (filter === 'paid')   query = query.eq('paid', true);
 
-  const { data } = await query;
-  return data || [];
+  const { data, count, error } = await query;
+  return { data: data || [], total: count || 0 };
 }
 
 export default async function MembershipsPage({ searchParams }) {
-  const filter = searchParams?.filter || 'all';
-  const [plans, memberships] = await Promise.all([getPlans(), getMemberships(filter)]);
+  const params = await searchParams;
+  const filter = params?.filter || 'all';
+  const page   = parseInt(params?.page || '1', 10);
+  const [plans, { data: memberships, total }] = await Promise.all([getPlans(), getMemberships(filter, page)]);
+  const PAGE_SIZE = 50;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <>
@@ -52,6 +60,15 @@ export default async function MembershipsPage({ searchParams }) {
           </div>
         </div>
         <MembershipsTable memberships={memberships} />
+        {totalPages > 1 && (
+          <div className="table-footer">
+            <span>Showing page <strong>{page}</strong> of <strong>{totalPages}</strong> ({total} total)</span>
+            <div>
+              {page > 1 && <Link href={`/memberships?filter=${filter}&page=${page - 1}`} className="button button-quiet">← Previous</Link>}
+              {page < totalPages && <Link href={`/memberships?filter=${filter}&page=${page + 1}`} className="button button-quiet">Next →</Link>}
+            </div>
+          </div>
+        )}
       </section>
     </>
   );

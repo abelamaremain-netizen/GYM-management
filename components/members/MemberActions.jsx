@@ -6,9 +6,11 @@ import { updateMemberAction, freezeMemberAction, unfreezeMemberAction, deleteMem
 import { markPaymentAction, setGracePeriodAction } from '../../lib/actions/memberships';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { useRouter } from 'next/navigation';
+import { useToast } from '../ui/Toast';
 
 export default function MemberActions({ member, activeMembership }) {
   const router = useRouter();
+  const toast = useToast();
   const [modal, setModal] = useState(null); // 'edit' | 'freeze' | 'grace' | 'confirm-delete' | 'confirm-unfreeze' | 'confirm-restore'
 
   const [editState, editAction, editPending] = useActionState(async (prev, formData) => {
@@ -43,14 +45,16 @@ export default function MemberActions({ member, activeMembership }) {
             {isFrozen && <button className="button button-quiet" onClick={() => setModal('confirm-unfreeze')}>Unfreeze</button>}
             {activeMembership && !activeMembership.paid && (
               <button className="button button-primary" onClick={async () => {
-                await markPaymentAction(activeMembership.id, true, member.id);
-                router.refresh();
+                const result = await markPaymentAction(activeMembership.id, true, member.id);
+                if (result?.error) toast(result.error, 'error');
+                else { toast('Payment marked as paid.'); router.refresh(); }
               }}>Mark paid</button>
             )}
             {activeMembership?.paid && (
               <button className="button button-quiet" onClick={async () => {
-                await markPaymentAction(activeMembership.id, false, member.id);
-                router.refresh();
+                const result = await markPaymentAction(activeMembership.id, false, member.id);
+                if (result?.error) toast(result.error, 'error');
+                else { toast('Payment marked as unpaid.'); router.refresh(); }
               }}>Mark unpaid</button>
             )}
             {member.status === 'expired' && (
@@ -152,10 +156,15 @@ export default function MemberActions({ member, activeMembership }) {
       {modal === 'confirm-unfreeze' && (
         <ConfirmDialog
           title="Unfreeze membership"
-          message={`Reactivate ${member.name}'s membership?`}
+          message={`Reactivate ${member.name}'s membership? Unused freeze days will be removed from the end date.`}
           confirmLabel="Unfreeze"
           onClose={() => setModal(null)}
-          onConfirm={async () => { await unfreezeMemberAction(member.id); setModal(null); router.refresh(); }}
+          onConfirm={async () => {
+            const result = await unfreezeMemberAction(member.id);
+            setModal(null);
+            if (result?.error) toast(result.error, 'error');
+            else { toast(`${member.name} has been unfrozen.`); router.refresh(); }
+          }}
         />
       )}
 
@@ -166,17 +175,27 @@ export default function MemberActions({ member, activeMembership }) {
           confirmLabel="Delete"
           danger
           onClose={() => setModal(null)}
-          onConfirm={async () => { await deleteMemberAction(member.id); setModal(null); router.push('/members'); }}
+          onConfirm={async () => {
+            const result = await deleteMemberAction(member.id);
+            setModal(null);
+            if (result?.error) toast(result.error, 'error');
+            else { toast(`${member.name} has been deleted.`); router.push('/members'); }
+          }}
         />
       )}
 
       {modal === 'confirm-restore' && (
         <ConfirmDialog
           title="Restore member"
-          message={`Restore ${member.name} to active status?`}
+          message={`Restore ${member.name}?`}
           confirmLabel="Restore"
           onClose={() => setModal(null)}
-          onConfirm={async () => { await restoreMemberAction(member.id); setModal(null); router.refresh(); }}
+          onConfirm={async () => {
+            const result = await restoreMemberAction(member.id);
+            setModal(null);
+            if (result?.error) toast(result.error, 'error');
+            else { toast(`${member.name} has been restored.`); router.refresh(); }
+          }}
         />
       )}
     </>

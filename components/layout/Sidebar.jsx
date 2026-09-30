@@ -4,33 +4,41 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Dumbbell, LayoutDashboard, Users, ShieldCheck, UserRound,
-  Wrench, Bell, Settings, FileText, ChevronDown, LogOut,
+  Wrench, Bell, Settings, FileText, ChevronDown, LogOut, X,
 } from 'lucide-react';
 import { logoutAction } from '../../lib/actions/auth';
 import { initials } from '../../lib/utils';
 
 const NAV = [
-  { label: 'Dashboard',      href: '/dashboard',       icon: LayoutDashboard, group: 'WORKSPACE' },
-  { label: 'Members',        href: '/members',          icon: Users,           group: 'WORKSPACE' },
-  { label: 'Memberships',    href: '/memberships',      icon: ShieldCheck,     group: 'WORKSPACE' },
-  { label: 'Instructors',    href: '/instructors',      icon: UserRound,       group: 'PEOPLE'    },
-  { label: 'Equipment',      href: '/equipment',        icon: Wrench,          group: 'MANAGE'    },
-  { label: 'Notifications',  href: '/notifications',    icon: Bell,            group: 'MANAGE'    },
-  { label: 'Reports',        href: '/reports',          icon: FileText,        group: 'MANAGE'    },
-  { label: 'Configurations', href: '/configurations',   icon: Settings,        group: 'MANAGE'    },
+  { label: 'Dashboard',      href: '/dashboard',      icon: LayoutDashboard, group: 'WORKSPACE' },
+  { label: 'Members',        href: '/members',         icon: Users,           group: 'WORKSPACE' },
+  { label: 'Memberships',    href: '/memberships',     icon: ShieldCheck,     group: 'WORKSPACE' },
+  { label: 'Instructors',    href: '/instructors',     icon: UserRound,       group: 'PEOPLE'    },
+  { label: 'Equipment',      href: '/equipment',       icon: Wrench,          group: 'MANAGE'    },
+  { label: 'Notifications',  href: '/notifications',   icon: Bell,            group: 'MANAGE'    },
+  { label: 'Reports',        href: '/reports',         icon: FileText,        group: 'MANAGE'    },
+  { label: 'Configurations', href: '/configurations',  icon: Settings,        group: 'MANAGE'    },
 ];
 
 const GROUPS = ['WORKSPACE', 'PEOPLE', 'MANAGE'];
+
+function closeSidebar() {
+  document.getElementById('app-sidebar')?.classList.remove('sidebar-open');
+  document.getElementById('mobile-scrim')?.classList.remove('active-scrim');
+}
 
 export default function Sidebar({ admin }) {
   const pathname = usePathname();
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" id="app-sidebar">
       {/* Brand */}
       <div className="brand">
         <span className="brand-mark"><Dumbbell size={19} /></span>
         <span>GYM<span className="brand-period">.</span></span>
+        <button className="mobile-close" onClick={closeSidebar} aria-label="Close navigation">
+          <X size={20} />
+        </button>
       </div>
 
       {/* Location pill */}
@@ -51,7 +59,12 @@ export default function Sidebar({ admin }) {
             {NAV.filter((item) => item.group === group).map(({ label, href, icon: Icon }) => {
               const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
               return (
-                <Link key={href} href={href} className={`nav-item ${active ? 'nav-active' : ''}`}>
+                <Link
+                  key={href}
+                  href={href}
+                  className={`nav-item ${active ? 'nav-active' : ''}`}
+                  onClick={closeSidebar}
+                >
                   <Icon size={17} />
                   <span>{label}</span>
                 </Link>

@@ -5,9 +5,11 @@ import { X, Loader2, Pencil } from 'lucide-react';
 import { updateInstructorAction, resetInstructorPasswordAction, deleteInstructorAction, restoreInstructorAction } from '../../lib/actions/instructors';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { useRouter } from 'next/navigation';
+import { useToast } from '../ui/Toast';
 
 export default function InstructorActions({ instructor, profile }) {
   const router = useRouter();
+  const toast = useToast();
   const [modal, setModal] = useState(null);
 
   const [editState, editAction, editPending] = useActionState(async (prev, formData) => {
@@ -91,10 +93,20 @@ export default function InstructorActions({ instructor, profile }) {
       )}
 
       {modal === 'confirm-delete' && (
-        <ConfirmDialog title="Delete instructor" message={`Delete ${instructor.name}? Their data and history will be preserved.`} confirmLabel="Delete" danger onClose={() => setModal(null)} onConfirm={async () => { await deleteInstructorAction(instructor.id); setModal(null); router.refresh(); }} />
+        <ConfirmDialog title="Delete instructor" message={`Delete ${instructor.name}? Their data and history will be preserved.`} confirmLabel="Delete" danger onClose={() => setModal(null)} onConfirm={async () => {
+          const result = await deleteInstructorAction(instructor.id);
+          setModal(null);
+          if (result?.error) toast(result.error, 'error');
+          else { toast(`${instructor.name} has been deleted.`); router.refresh(); }
+        }} />
       )}
       {modal === 'confirm-restore' && (
-        <ConfirmDialog title="Restore instructor" message={`Restore ${instructor.name}?`} confirmLabel="Restore" onClose={() => setModal(null)} onConfirm={async () => { await restoreInstructorAction(instructor.id); setModal(null); router.refresh(); }} />
+        <ConfirmDialog title="Restore instructor" message={`Restore ${instructor.name}?`} confirmLabel="Restore" onClose={() => setModal(null)} onConfirm={async () => {
+          const result = await restoreInstructorAction(instructor.id);
+          setModal(null);
+          if (result?.error) toast(result.error, 'error');
+          else { toast(`${instructor.name} has been restored.`); router.refresh(); }
+        }} />
       )}
     </>
   );

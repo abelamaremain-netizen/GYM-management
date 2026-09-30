@@ -62,8 +62,9 @@ function getMemberCheckInStatus(member) {
 }
 
 export default async function MembersPage({ searchParams }) {
-  const status = searchParams?.status || 'all';
-  const search = searchParams?.search || '';
+  const params = await searchParams;
+  const status = params?.status || 'all';
+  const search = params?.search || '';
   const members = await getMembers(status, search);
 
   const tabs = [

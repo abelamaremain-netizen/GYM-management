@@ -6,10 +6,11 @@ import { FileText, Users, Wallet, ShieldCheck, UserRound } from 'lucide-react';
 async function getReportData() {
   if (!supabaseAdmin) return null;
 
-  const now = new Date();
+  const now          = new Date();
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const firstOfYear  = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
 
+  // Task 11: Use DB-level counts and sum rpc instead of fetching all rows
   const [
     { count: totalMembers },
     { count: activeMembers },
@@ -19,7 +20,7 @@ async function getReportData() {
     { count: totalInstructors },
     { data: revenueMonth },
     { data: revenueYear },
-    { data: unpaidMemberships },
+    { data: outstanding },
     { data: planBreakdown },
     { data: recentPayments },
     { data: newMembersMonth },
@@ -30,26 +31,39 @@ async function getReportData() {
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'member').eq('status', 'expired'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'member').eq('status', 'deleted'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'instructor').neq('status', 'deleted'),
-    supabaseAdmin.from('member_memberships').select('final_price').eq('paid', true).gte('paid_date', firstOfMonth),
-    supabaseAdmin.from('member_memberships').select('final_price').eq('paid', true).gte('paid_date', firstOfYear),
-    supabaseAdmin.from('member_memberships').select('final_price').eq('paid', false),
+    // DB sum via rpc
+    supabaseAdmin.rpc('sum_revenue_this_month', { month_start: firstOfMonth }).maybeSingle(),
+    supabaseAdmin.rpc('sum_revenue_this_year',  { year_start:  firstOfYear  }).maybeSingle(),
+    supabaseAdmin.rpc('sum_outstanding').maybeSingle(),
+    // Plan breakdown — only plan_name needed, not full rows
     supabaseAdmin.from('member_memberships').select('plan_name').eq('paid', true),
-    supabaseAdmin.from('member_memberships').select('*, users!member_id(name)').eq('paid', true).order('paid_date', { ascending: false }).limit(10),
-    supabaseAdmin.from('users').select('id, name, created_at').eq('role', 'member').gte('created_at', firstOfMonth).order('created_at', { ascending: false }),
+    supabaseAdmin.from('member_memberships')
+      .select('id, plan_name, final_price, paid_date, users!member_id(name)')
+      .eq('paid', true)
+      .order('paid_date', { ascending: false })
+      .limit(10),
+    supabaseAdmin.from('users')
+      .select('id, name, created_at', { count: 'exact' })
+      .eq('role', 'member')
+      .gte('created_at', firstOfMonth)
+      .order('created_at', { ascending: false }),
   ]);
 
-  const revenueThisMonth = (revenueMonth || []).reduce((s, r) => s + Number(r.final_price), 0);
-  const revenueThisYear  = (revenueYear  || []).reduce((s, r) => s + Number(r.final_price), 0);
-  const outstandingAmount = (unpaidMemberships || []).reduce((s, r) => s + Number(r.final_price), 0);
+  const revenueThisMonth  = revenueMonth?.sum  ?? 0;
+  const revenueThisYear   = revenueYear?.sum   ?? 0;
+  const outstandingAmount = outstanding?.sum   ?? 0;
 
-  // Count plans
   const planCounts = (planBreakdown || []).reduce((acc, m) => {
     acc[m.plan_name] = (acc[m.plan_name] || 0) + 1;
     return acc;
   }, {});
 
   return {
-    members: { total: totalMembers, active: activeMembers, frozen: frozenMembers, expired: expiredMembers, deleted: deletedMembers, newThisMonth: newMembersMonth?.length || 0 },
+    members: {
+      total: totalMembers, active: activeMembers, frozen: frozenMembers,
+      expired: expiredMembers, deleted: deletedMembers,
+      newThisMonth: newMembersMonth?.length || 0,
+    },
     instructors: { total: totalInstructors },
     revenue: { thisMonth: revenueThisMonth, thisYear: revenueThisYear, outstanding: outstandingAmount },
     planCounts,

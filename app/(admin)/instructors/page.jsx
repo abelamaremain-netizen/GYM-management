@@ -28,7 +28,8 @@ async function getInstructors(showDeleted) {
 }
 
 export default async function InstructorsPage({ searchParams }) {
-  const showDeleted = searchParams?.status === 'deleted';
+  const params = await searchParams;
+  const showDeleted = params?.status === 'deleted';
   const instructors = await getInstructors(showDeleted);
 
   return (

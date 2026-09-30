@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "npx eslint app/page.jsx app/setup/page.jsx app/layout.jsx lib/supabase.js next.config.mjs eslint.config.mjs"
+    "lint": "next lint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -14,7 +14,8 @@
     "lucide-react": "^0.468.0",
     "next": "^15.5.3",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",

@@ -257,7 +257,8 @@ insert into public.configurations (key, value, type, label, description, group_n
   ('equipment_service_interval_days',  '30',                                         'integer', 'Equipment Service Interval (days)',   'Days between routine equipment services', 'equipment'),
   ('equipment_service_due_warning_days','7',                                         'integer', 'Equipment Service Due Warning (days)','Days before service due date to warn admin', 'equipment'),
   ('equipment_categories',             'Cardio,Free Weights,Machines,Accessories,Furniture', 'string', 'Equipment Categories', 'Comma-separated list of allowed equipment categories', 'equipment'),
-  ('admin_session_duration_hours',     '8',                                          'integer', 'Admin Session Duration (hours)',      'How long an admin session stays valid', 'system')
+  ('admin_session_duration_hours',     '8',                                          'integer', 'Admin Session Duration (hours)',      'How long an admin session stays valid', 'system'),
+  ('currency_code',                    'ETB',                                        'string',  'Currency Code',                      'ISO 4217 currency code used throughout the system (e.g. ETB, USD, EUR)', 'system')
 on conflict (key) do nothing;
 
 -- ============================================================
@@ -277,3 +278,35 @@ alter table public.equipment_maintenance_logs enable row level security;
 alter table public.notifications             enable row level security;
 alter table public.audit_logs                enable row level security;
 alter table public.configurations            enable row level security;
+
+-- ============================================================
+-- HELPER FUNCTIONS
+-- ============================================================
+
+-- Revenue sum for a given month (used by dashboard)
+create or replace function public.sum_revenue_this_month(month_start date)
+returns table(sum numeric) language sql security definer as $$
+  select coalesce(sum(final_price), 0) as sum
+  from public.member_memberships
+  where paid = true
+    and paid_date >= month_start
+    and paid_date < (month_start + interval '1 month')::date;
+$$;
+
+-- Revenue sum for a given year
+create or replace function public.sum_revenue_this_year(year_start date)
+returns table(sum numeric) language sql security definer as $$
+  select coalesce(sum(final_price), 0) as sum
+  from public.member_memberships
+  where paid = true
+    and paid_date >= year_start
+    and paid_date < (year_start + interval '1 year')::date;
+$$;
+
+-- Outstanding (unpaid) amount
+create or replace function public.sum_outstanding()
+returns table(sum numeric) language sql security definer as $$
+  select coalesce(sum(final_price), 0) as sum
+  from public.member_memberships
+  where paid = false;
+$$;
