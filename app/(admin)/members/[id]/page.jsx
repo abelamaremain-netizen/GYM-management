@@ -7,8 +7,10 @@ import StatusBadge from '../../../../components/ui/StatusBadge';
 import Avatar from '../../../../components/ui/Avatar';
 import MemberActions from '../../../../components/members/MemberActions';
 import AssignMembershipModal from '../../../../components/memberships/AssignMembershipModal';
+import { getMemberById, getMemberFreezeHistory, getActivePlans, IS_DEMO } from '../../../../lib/db/index';
 
 async function getMember(id) {
+  if (IS_DEMO) return getMemberById(id);
   if (!supabaseAdmin) return null;
 
   const { data } = await supabaseAdmin
@@ -32,6 +34,7 @@ async function getMember(id) {
 }
 
 async function getFreezeHistory(memberId) {
+  if (IS_DEMO) return getMemberFreezeHistory(memberId);
   if (!supabaseAdmin) return [];
   const { data } = await supabaseAdmin
     .from('membership_freezes')
@@ -41,7 +44,8 @@ async function getFreezeHistory(memberId) {
   return data || [];
 }
 
-async function getActivePlans() {
+async function getActivePlansForMember() {
+  if (IS_DEMO) return getActivePlans();
   if (!supabaseAdmin) return [];
   const { data } = await supabaseAdmin
     .from('membership_plans')
@@ -56,7 +60,7 @@ export default async function MemberDetailPage({ params }) {
   const [member, freezeHistory, plans] = await Promise.all([
     getMember(id),
     getFreezeHistory(id),
-    getActivePlans(),
+    getActivePlansForMember(),
   ]);
 
   if (!member) notFound();

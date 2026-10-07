@@ -7,8 +7,13 @@ import { Wrench } from 'lucide-react';
 import AddEquipmentModal from '../../../components/equipment/AddEquipmentModal';
 import EquipmentActions from '../../../components/equipment/EquipmentActions';
 import Link from 'next/link';
+import { getEquipment as getMockEquipment, getEquipmentCategories, IS_DEMO } from '../../../lib/db/index';
 
 async function getEquipment(status, category) {
+  if (IS_DEMO) {
+    const categories = getEquipmentCategories();
+    return { equipment: getMockEquipment({ status, category }), categories };
+  }
   if (!supabaseAdmin) return { equipment: [], categories: [] };
 
   let query = supabaseAdmin

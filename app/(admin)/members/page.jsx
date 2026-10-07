@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../../../lib/supabase';
 import { formatDate, daysUntil } from '../../../lib/utils';
-import { Users, Plus, Search } from 'lucide-react';
+import { Users } from 'lucide-react';
 import Link from 'next/link';
 import PageHeader from '../../../components/ui/PageHeader';
 import StatusBadge from '../../../components/ui/StatusBadge';
@@ -8,8 +8,10 @@ import Avatar from '../../../components/ui/Avatar';
 import EmptyState from '../../../components/ui/EmptyState';
 import MembersToolbar from '../../../components/members/MembersToolbar';
 import AddMemberModal from '../../../components/members/AddMemberModal';
+import { getMembers as getMockMembers, IS_DEMO } from '../../../lib/db/index';
 
 async function getMembers(status, search) {
+  if (IS_DEMO) return getMockMembers({ status, search });
   if (!supabaseAdmin) return [];
 
   let query = supabaseAdmin

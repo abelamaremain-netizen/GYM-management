@@ -2,8 +2,10 @@ import { supabaseAdmin } from '../../../lib/supabase';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import PageHeader from '../../../components/ui/PageHeader';
 import { FileText, Users, Wallet, ShieldCheck, UserRound } from 'lucide-react';
+import { getReportData as getMockReportData, IS_DEMO } from '../../../lib/db/index';
 
 async function getReportData() {
+  if (IS_DEMO) return getMockReportData();
   if (!supabaseAdmin) return null;
 
   const now          = new Date();

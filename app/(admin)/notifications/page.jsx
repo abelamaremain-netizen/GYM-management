@@ -6,11 +6,12 @@ import { Bell } from 'lucide-react';
 import EmptyState from '../../../components/ui/EmptyState';
 import NotificationItem from '../../../components/notifications/NotificationItem';
 import Link from 'next/link';
+import { getNotifications as getMockNotifications, IS_DEMO } from '../../../lib/db/index';
 
 async function getNotifications(filter) {
+  if (IS_DEMO) return getMockNotifications({ filter });
   if (!supabaseAdmin) return [];
   await generateNotificationsAction();
-
   let query = supabaseAdmin
     .from('notifications')
     .select('*, users!dismissed_by(name)')

@@ -7,8 +7,10 @@ import EmptyState from '../../../components/ui/EmptyState';
 import { ShieldCheck } from 'lucide-react';
 import ManagePlansSection from '../../../components/memberships/ManagePlansSection';
 import MembershipsTable from '../../../components/memberships/MembershipsTable';
+import { getPlans as getMockPlans, getMemberships as getMockMemberships, IS_DEMO } from '../../../lib/db/index';
 
 async function getPlans() {
+  if (IS_DEMO) return getMockPlans();
   if (!supabaseAdmin) return [];
   const { data } = await supabaseAdmin
     .from('membership_plans')
@@ -18,6 +20,7 @@ async function getPlans() {
 }
 
 async function getMemberships(filter, page = 1) {
+  if (IS_DEMO) return getMockMemberships({ filter, page });
   if (!supabaseAdmin) return { data: [], total: 0 };
   const PAGE_SIZE = 50;
   const from = (page - 1) * PAGE_SIZE;

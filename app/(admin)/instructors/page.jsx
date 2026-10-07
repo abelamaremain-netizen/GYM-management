@@ -8,8 +8,10 @@ import { UserRound } from 'lucide-react';
 import AddInstructorModal from '../../../components/instructors/AddInstructorModal';
 import InstructorActions from '../../../components/instructors/InstructorActions';
 import Link from 'next/link';
+import { getInstructors as getMockInstructors, IS_DEMO } from '../../../lib/db/index';
 
 async function getInstructors(showDeleted) {
+  if (IS_DEMO) return getMockInstructors({ showDeleted });
   if (!supabaseAdmin) return [];
   let query = supabaseAdmin
     .from('users')

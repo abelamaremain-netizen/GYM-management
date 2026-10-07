@@ -2,9 +2,11 @@ import { supabaseAdmin } from '../../../lib/supabase';
 import { getSession } from '../../../lib/auth';
 import PageHeader from '../../../components/ui/PageHeader';
 import ConfigurationsTable from '../../../components/configurations/ConfigurationsTable';
+import { getConfigurations as getMockConfigurations, IS_DEMO } from '../../../lib/db/index';
 
 async function getConfigurations() {
-  if (!supabaseAdmin) return [];
+  if (IS_DEMO) return getMockConfigurations();
+  if (!supabaseAdmin) return {};
   const { data } = await supabaseAdmin
     .from('configurations')
     .select('*, users!updated_by(name)')
@@ -15,13 +17,16 @@ async function getConfigurations() {
 export default async function ConfigurationsPage() {
   const session = await getSession();
   const isSuperAdmin = session?.role === 'super_admin';
-  const configurations = await getConfigurations();
+  const result = await getConfigurations();
 
-  const grouped = configurations.reduce((acc, c) => {
-    if (!acc[c.group_name]) acc[c.group_name] = [];
-    acc[c.group_name].push(c);
-    return acc;
-  }, {});
+  // Mock returns already-grouped object; Supabase returns an array — normalize
+  const grouped = Array.isArray(result)
+    ? result.reduce((acc, c) => {
+        if (!acc[c.group_name]) acc[c.group_name] = [];
+        acc[c.group_name].push(c);
+        return acc;
+      }, {})
+    : result;
 
   return (
     <>

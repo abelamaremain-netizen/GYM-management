@@ -3,6 +3,7 @@ import { getSession } from '../../../lib/auth';
 import { generateNotificationsAction } from '../../../lib/actions/notifications';
 import { expireStaleMembers } from '../../../lib/actions/members';
 import { formatCurrency, daysUntil, formatDate } from '../../../lib/utils';
+import { getDashboardStats, IS_DEMO } from '../../../lib/db/index';
 import {
   Users, ShieldCheck, Wallet, Bell, AlertTriangle,
   Snowflake, TrendingUp, Wrench,
@@ -11,6 +12,9 @@ import Link from 'next/link';
 import StatusBadge from '../../../components/ui/StatusBadge';
 
 async function getDashboardData() {
+  // Demo mode: return mock data immediately, no DB needed
+  if (IS_DEMO) return getDashboardStats();
+
   if (!supabaseAdmin) return null;
 
   // Task 3: Auto-expire stale members on dashboard load (throttled internally)
