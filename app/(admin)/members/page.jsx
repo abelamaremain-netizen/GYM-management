@@ -8,7 +8,7 @@ import Avatar from '../../../components/ui/Avatar';
 import EmptyState from '../../../components/ui/EmptyState';
 import MembersToolbar from '../../../components/members/MembersToolbar';
 import AddMemberModal from '../../../components/members/AddMemberModal';
-import { getMembers as getMockMembers, IS_DEMO } from '../../../lib/db/index';
+import { getMembers as getMockMembers, getActivePlans as getMockPlans, IS_DEMO } from '../../../lib/db/index';
 
 async function getMembers(status, search) {
   if (IS_DEMO) return getMockMembers({ status, search });
@@ -42,6 +42,17 @@ async function getMembers(status, search) {
   return data || [];
 }
 
+async function getActivePlans() {
+  if (IS_DEMO) return getMockPlans();
+  if (!supabaseAdmin) return [];
+  const { data } = await supabaseAdmin
+    .from('membership_plans')
+    .select('id, name, duration_days, final_price, discount_amount, original_price')
+    .eq('is_active', true)
+    .order('duration_days', { ascending: true });
+  return data || [];
+}
+
 function getActiveMembership(memberships) {
   if (!memberships?.length) return null;
   return [...memberships].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
@@ -67,12 +78,12 @@ export default async function MembersPage({ searchParams }) {
   const params = await searchParams;
   const status = params?.status || 'all';
   const search = params?.search || '';
-  const members = await getMembers(status, search);
+  const [members, plans] = await Promise.all([getMembers(status, search), getActivePlans()]);
 
   const tabs = [
-    { label: 'All', value: 'all' },
-    { label: 'Active', value: 'active' },
-    { label: 'Frozen', value: 'frozen' },
+    { label: 'All',     value: 'all'     },
+    { label: 'Active',  value: 'active'  },
+    { label: 'Frozen',  value: 'frozen'  },
     { label: 'Expired', value: 'expired' },
     { label: 'Deleted', value: 'deleted' },
   ];
@@ -80,11 +91,10 @@ export default async function MembersPage({ searchParams }) {
   return (
     <>
       <PageHeader eyebrow="MEMBERS" title="Members" description="Manage gym member registrations and memberships.">
-        <AddMemberModal />
+        <AddMemberModal plans={plans} />
       </PageHeader>
 
       <section className="panel page-panel">
-        {/* Tabs */}
         <div className="tab-bar">
           {tabs.map((tab) => (
             <Link
@@ -97,7 +107,6 @@ export default async function MembersPage({ searchParams }) {
           ))}
         </div>
 
-        {/* Search */}
         <MembersToolbar search={search} status={status} />
 
         <span className="result-count" style={{ display: 'block', margin: '8px 0' }}>
@@ -136,7 +145,11 @@ export default async function MembersPage({ searchParams }) {
                         </Link>
                       </td>
                       <td className="muted-cell">{member.phone || '—'}</td>
-                      <td>{membership ? <span className="plan-pill">{membership.plan_name}</span> : <span className="muted-cell">—</span>}</td>
+                      <td>
+                        {membership
+                          ? <span className="plan-pill">{membership.plan_name}</span>
+                          : <span className="muted-cell">—</span>}
+                      </td>
                       <td className="muted-cell">{formatDate(member.member_profiles?.[0]?.joined_at)}</td>
                       <td className="muted-cell">
                         {membership ? (
