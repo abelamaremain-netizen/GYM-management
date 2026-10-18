@@ -9,7 +9,7 @@ async function getConfigurations() {
   if (!supabaseAdmin) return {};
   const { data } = await supabaseAdmin
     .from('configurations')
-    .select('*, users!updated_by(name)')
+    .select('*, users!configurations_updated_by_fkey(name)')
     .order('group_name', { ascending: true });
   return data || [];
 }

@@ -14,7 +14,7 @@ async function getPlans() {
   if (!supabaseAdmin) return [];
   const { data } = await supabaseAdmin
     .from('membership_plans')
-    .select('*, users!created_by(name)')
+    .select('*, users!membership_plans_created_by_fkey(name)')
     .order('duration_days', { ascending: true });
   return data || [];
 }
@@ -28,7 +28,7 @@ async function getMemberships(filter, page = 1) {
 
   let query = supabaseAdmin
     .from('member_memberships')
-    .select('*, users!member_id(id, name, status)', { count: 'exact' })
+    .select('*, users!member_memberships_member_id_fkey(id, name, status)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
 

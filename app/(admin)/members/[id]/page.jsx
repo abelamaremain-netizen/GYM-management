@@ -21,7 +21,7 @@ async function getMember(id) {
         date_of_birth, gender, emergency_contact_name,
         emergency_contact_phone, health_notes, joined_at
       ),
-      member_memberships(
+      member_memberships!member_memberships_member_id_fkey(
         id, plan_name, plan_duration_days, original_price, discount_amount,
         final_price, start_date, end_date, paid, paid_date, grace_until, notes, created_at
       )
@@ -38,7 +38,7 @@ async function getFreezeHistory(memberId) {
   if (!supabaseAdmin) return [];
   const { data } = await supabaseAdmin
     .from('membership_freezes')
-    .select('id, freeze_start, freeze_end, reason, created_at, users!created_by(name)')
+    .select('id, freeze_start, freeze_end, reason, created_at, users!membership_freezes_created_by_fkey(name)')
     .eq('member_id', memberId)
     .order('created_at', { ascending: false });
   return data || [];

@@ -19,7 +19,7 @@ async function getMembers(status, search) {
     .select(`
       id, name, email, phone, status, created_at,
       member_profiles(joined_at, gender, date_of_birth),
-      member_memberships(id, plan_name, end_date, paid, grace_until, start_date)
+      member_memberships!member_memberships_member_id_fkey(id, plan_name, end_date, paid, grace_until, start_date)
     `)
     .eq('role', 'member')
     .order('created_at', { ascending: false });

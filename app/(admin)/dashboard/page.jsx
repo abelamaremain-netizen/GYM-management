@@ -56,13 +56,13 @@ async function getDashboardData() {
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'instructor').eq('status', 'active'),
     supabaseAdmin.from('notifications').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     supabaseAdmin.from('member_memberships')
-      .select('id, member_id, end_date, users!member_id(id, name, status)')
+      .select('id, member_id, end_date, users!member_memberships_member_id_fkey(id, name, status)')
       .gt('end_date', today)
       .lte('end_date', expiryWarnDate)
       .order('end_date', { ascending: true })
       .limit(5),
     supabaseAdmin.from('member_memberships')
-      .select('id, member_id, final_price, end_date, users!member_id(id, name)')
+      .select('id, member_id, final_price, end_date, users!member_memberships_member_id_fkey(id, name)')
       .eq('paid', false)
       .gte('end_date', today)             // only current, not past-expired
       .lte('end_date', paymentWarnDate)

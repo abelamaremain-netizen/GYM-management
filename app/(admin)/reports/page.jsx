@@ -40,7 +40,7 @@ async function getReportData() {
     // Plan breakdown — only plan_name needed, not full rows
     supabaseAdmin.from('member_memberships').select('plan_name').eq('paid', true),
     supabaseAdmin.from('member_memberships')
-      .select('id, plan_name, final_price, paid_date, users!member_id(name)')
+      .select('id, plan_name, final_price, paid_date, users!member_memberships_member_id_fkey(name)')
       .eq('paid', true)
       .order('paid_date', { ascending: false })
       .limit(10),
