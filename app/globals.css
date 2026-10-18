@@ -254,3 +254,9 @@ code{font-family:monospace}
 .plan-summary-total{border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
 .plan-summary-total span{font-weight:700;color:#354038}
 .plan-summary-total strong{font:700 14px var(--font-display);color:var(--green)}
+
+/* ── Pagination ────────────────────────────────────────────── */
+.pagination-btns{display:flex;align-items:center;gap:6px}
+.pagination-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 10px;font-size:10px}
+.pagination-btn.disabled{opacity:.4;pointer-events:none;cursor:default}
+.pagination-page{font-size:10px;color:var(--muted);padding:0 4px;white-space:nowrap}

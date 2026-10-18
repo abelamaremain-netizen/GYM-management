@@ -49,7 +49,7 @@ create table if not exists public.member_profiles (
   id                       uuid primary key default gen_random_uuid(),
   user_id                  uuid not null unique references public.users (id) on delete cascade,
   date_of_birth            date,
-  gender                   text check (gender in ('male', 'female', 'other')),
+  gender                   text check (gender in ('male', 'female')),
   emergency_contact_name   text,
   emergency_contact_phone  text,
   health_notes             text,

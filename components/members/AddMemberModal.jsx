@@ -57,7 +57,6 @@ export default function AddMemberModal({ plans = [] }) {
                   <option value="">Select</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
-                  <option value="other">Other</option>
                 </select>
               </label>
               <label className="form-label">Emergency contact name <input name="emergency_contact_name" className="form-input" placeholder="Contact name" /></label>

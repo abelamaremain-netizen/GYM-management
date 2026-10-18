@@ -6,13 +6,23 @@ import PageHeader from '../../../components/ui/PageHeader';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import Avatar from '../../../components/ui/Avatar';
 import EmptyState from '../../../components/ui/EmptyState';
+import Pagination from '../../../components/ui/Pagination';
 import MembersToolbar from '../../../components/members/MembersToolbar';
 import AddMemberModal from '../../../components/members/AddMemberModal';
 import { getMembers as getMockMembers, getActivePlans as getMockPlans, IS_DEMO } from '../../../lib/db/index';
 
-async function getMembers(status, search) {
-  if (IS_DEMO) return getMockMembers({ status, search });
-  if (!supabaseAdmin) return [];
+const PAGE_SIZE = 25;
+
+async function getMembers(status, search, page) {
+  if (IS_DEMO) {
+    const all = getMockMembers({ status, search });
+    const from = (page - 1) * PAGE_SIZE;
+    return { data: all.slice(from, from + PAGE_SIZE), total: all.length };
+  }
+  if (!supabaseAdmin) return { data: [], total: 0 };
+
+  const from = (page - 1) * PAGE_SIZE;
+  const to   = from + PAGE_SIZE - 1;
 
   let query = supabaseAdmin
     .from('users')
@@ -20,9 +30,10 @@ async function getMembers(status, search) {
       id, name, email, phone, status, created_at,
       member_profiles(joined_at, gender, date_of_birth),
       member_memberships!member_memberships_member_id_fkey(id, plan_name, end_date, paid, grace_until, start_date)
-    `)
+    `, { count: 'exact' })
     .eq('role', 'member')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (status && status !== 'all') {
     if (status === 'deleted') {
@@ -38,8 +49,8 @@ async function getMembers(status, search) {
     query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
   }
 
-  const { data } = await query;
-  return data || [];
+  const { data, count } = await query;
+  return { data: data || [], total: count || 0 };
 }
 
 async function getActivePlans() {
@@ -75,10 +86,15 @@ function getMemberCheckInStatus(member) {
 }
 
 export default async function MembersPage({ searchParams }) {
-  const params = await searchParams;
-  const status = params?.status || 'all';
-  const search = params?.search || '';
-  const [members, plans] = await Promise.all([getMembers(status, search), getActivePlans()]);
+  const params  = await searchParams;
+  const status  = params?.status || 'all';
+  const search  = params?.search || '';
+  const page    = Math.max(1, parseInt(params?.page || '1', 10));
+
+  const [{ data: members, total }, plans] = await Promise.all([
+    getMembers(status, search, page),
+    getActivePlans(),
+  ]);
 
   const tabs = [
     { label: 'All',     value: 'all'     },
@@ -110,69 +126,78 @@ export default async function MembersPage({ searchParams }) {
         <MembersToolbar search={search} status={status} />
 
         <span className="result-count" style={{ display: 'block', margin: '8px 0' }}>
-          {members.length} member{members.length !== 1 ? 's' : ''}
+          {total} member{total !== 1 ? 's' : ''}
         </span>
 
         {members.length === 0 ? (
           <EmptyState icon={Users} title="No members found" description="Try a different filter or add a new member." />
         ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>MEMBER</th>
-                  <th>PHONE</th>
-                  <th>PLAN</th>
-                  <th>JOINED</th>
-                  <th>EXPIRES</th>
-                  <th>STATUS</th>
-                  <th>CHECK-IN</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => {
-                  const membership = getActiveMembership(member.member_memberships);
-                  const checkin = getMemberCheckInStatus(member);
-                  return (
-                    <tr key={member.id}>
-                      <td>
-                        <Link href={`/members/${member.id}`} className="member-cell">
-                          <Avatar name={member.name} />
-                          <span>
-                            <strong>{member.name}</strong>
-                            <small>{member.email || '—'}</small>
+          <>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>MEMBER</th>
+                    <th>PHONE</th>
+                    <th>PLAN</th>
+                    <th>JOINED</th>
+                    <th>EXPIRES</th>
+                    <th>STATUS</th>
+                    <th>CHECK-IN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((member) => {
+                    const membership = getActiveMembership(member.member_memberships);
+                    const checkin = getMemberCheckInStatus(member);
+                    return (
+                      <tr key={member.id}>
+                        <td>
+                          <Link href={`/members/${member.id}`} className="member-cell">
+                            <Avatar name={member.name} />
+                            <span>
+                              <strong>{member.name}</strong>
+                              <small>{member.email || '—'}</small>
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="muted-cell">{member.phone || '—'}</td>
+                        <td>
+                          {membership
+                            ? <span className="plan-pill">{membership.plan_name}</span>
+                            : <span className="muted-cell">—</span>}
+                        </td>
+                        <td className="muted-cell">{formatDate(member.member_profiles?.[0]?.joined_at)}</td>
+                        <td className="muted-cell">
+                          {membership ? (
+                            <>
+                              {formatDate(membership.end_date)}
+                              {daysUntil(membership.end_date) <= 7 && daysUntil(membership.end_date) >= 0 && (
+                                <span className="expiry-warn"> · {daysUntil(membership.end_date)}d left</span>
+                              )}
+                            </>
+                          ) : '—'}
+                        </td>
+                        <td><StatusBadge status={member.status} /></td>
+                        <td>
+                          <span className={`checkin-indicator checkin-${checkin.color}`}>
+                            <i />{checkin.label}
                           </span>
-                        </Link>
-                      </td>
-                      <td className="muted-cell">{member.phone || '—'}</td>
-                      <td>
-                        {membership
-                          ? <span className="plan-pill">{membership.plan_name}</span>
-                          : <span className="muted-cell">—</span>}
-                      </td>
-                      <td className="muted-cell">{formatDate(member.member_profiles?.[0]?.joined_at)}</td>
-                      <td className="muted-cell">
-                        {membership ? (
-                          <>
-                            {formatDate(membership.end_date)}
-                            {daysUntil(membership.end_date) <= 7 && daysUntil(membership.end_date) >= 0 && (
-                              <span className="expiry-warn"> · {daysUntil(membership.end_date)}d left</span>
-                            )}
-                          </>
-                        ) : '—'}
-                      </td>
-                      <td><StatusBadge status={member.status} /></td>
-                      <td>
-                        <span className={`checkin-indicator checkin-${checkin.color}`}>
-                          <i />{checkin.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              total={total}
+              pageSize={PAGE_SIZE}
+              basePath="/members"
+              params={{ status, search }}
+            />
+          </>
         )}
       </section>
     </>
